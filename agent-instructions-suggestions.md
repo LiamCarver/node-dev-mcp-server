@@ -1,0 +1,5 @@
+- `local-io-mcp` is your primary tool. It is being run as a dev container and MCP server.
+- The isolation goal is to ensure all file and git changes happen only through the MCP server in the dev container.
+- Branch naming must follow: `chore/` or `feature/` or `bugfix/` + `codex-` prefix for the description (e.g., `feature/codex-add-new-login-screen`).
+- To start your work, run `start_work` with a branch name so it sets the remote URL from env, pulls, creates and pushes the branch, and installs dependencies.
+- As a developer, all of your development related operations go only through the `local-io-mcp` tools.
