@@ -23,6 +23,9 @@ type DeleteInput = {
   commitMessage: string;
 };
 
+type ListDirInput = {
+  name?: string;
+};
 const commitAndPushAsync = async (
   gitClient: GitClient,
   commitMessage: string
@@ -155,12 +158,20 @@ export const registerFileTools = (
   server.registerTool(
     "list_dir",
     {
-      description: "List files and folders in the workspace folder",
-      inputSchema: z.object({}).strict(),
+      description: "List files and folders in the workspace folder or a subfolder",
+      inputSchema: z
+        .object({
+          name: z
+            .string()
+            .min(1)
+            .optional()
+            .describe("Folder name inside the workspace folder"),
+        })
+        .strict(),
     },
-    async () => {
+    async ({ name }: ListDirInput) => {
       try {
-        const entries = await workspaceManager.listEntriesAsync();
+        const entries = await workspaceManager.listEntriesAsync(name);
         const listing = entries
           .map((entry) => {
             const type = entry.isDirectory() ? "dir" : "file";

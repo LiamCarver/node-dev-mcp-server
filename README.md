@@ -12,7 +12,7 @@ Lightweight MCP server for local workspace file operations and git commands.
 | delete_file | Delete a file from the workspace folder | `{ "name": "path/to/file.txt", "commitMessage": "Remove obsolete file" }` |
 | create_folder | Create a folder in the workspace folder | `{ "name": "path/to/folder" }` |
 | delete_folder | Delete a folder from the workspace folder | `{ "name": "path/to/folder", "commitMessage": "Remove deprecated folder" }` |
-| list_dir | List files and folders in the workspace folder | `{}` |
+| list_dir | List files and folders in the workspace folder or a subfolder | `{ "name": "path/to/folder" }` or `{}` |
 | vcs_status | Get the status of the repository | `{}` |
 | vcs_diff | Get repository diff | `{ "staged": false, "file": "path/to/file.txt" }` or `{ "base": "main", "head": "HEAD" }` |
 | vcs_log | Show commit log | `{ "limit": 10 }` |

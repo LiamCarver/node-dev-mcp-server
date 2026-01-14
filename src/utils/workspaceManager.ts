@@ -117,7 +117,10 @@ export class WorkspaceManager {
     await fs.rm(this.resolvePath(name), { recursive: true, force: true });
   }
 
-  async listEntriesAsync(): Promise<Dirent[]> {
-    return fs.readdir(this.getWorkspaceDir(), { withFileTypes: true });
+  async listEntriesAsync(name?: string): Promise<Dirent[]> {
+    if (!name) {
+      return fs.readdir(this.getWorkspaceDir(), { withFileTypes: true });
+    }
+    return fs.readdir(this.resolvePath(name), { withFileTypes: true });
   }
 }
