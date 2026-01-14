@@ -1,1 +1,2 @@
+- Always ensure that the README file has been updated based on your code changes if applicable.
 - Ensure that the build passes after you make code changes.
