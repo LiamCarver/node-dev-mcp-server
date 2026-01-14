@@ -1,4 +1,4 @@
-# Local-IO MCP Server
+# Node Dev MCP Server
 
 Lightweight MCP server for local workspace file operations and git commands.
 
