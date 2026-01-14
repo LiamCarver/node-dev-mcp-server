@@ -18,7 +18,7 @@ RUN apt-get update \
   && update-ca-certificates \
   && git config --global push.autoSetupRemote true \
   && git config --global user.name "mcp-bot" \
-  && git config --global user.email "mcp-bot@codex.com" \
+  && git config --global user.email "mcp-bot@ai.com" \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
