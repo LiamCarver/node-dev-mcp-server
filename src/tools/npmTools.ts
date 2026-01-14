@@ -7,6 +7,10 @@ type InstallPackageInput = {
   name: string;
 };
 
+type InstallDependenciesInput = {
+  legacyPeerDeps?: boolean;
+};
+
 type RunScriptInput = {
   script: string;
 };
@@ -16,11 +20,18 @@ export const registerNpmTools = (server: McpServer, npmClient: NpmClient): void 
     "install_dependencies",
     {
       description: "Install all dependencies in the workspace",
-      inputSchema: z.object({}).strict(),
+      inputSchema: z
+        .object({
+          legacyPeerDeps: z
+            .boolean()
+            .optional()
+            .describe("Use npm --legacy-peer-deps to bypass peer dependency conflicts."),
+        })
+        .strict(),
     },
-    async () => {
+    async ({ legacyPeerDeps }: InstallDependenciesInput) => {
       try {
-        const { stdout } = await npmClient.installAllAsync();
+        const { stdout } = await npmClient.installAllAsync({ legacyPeerDeps });
         return textResponse(stdout || "Dependency install completed.");
       } catch (error) {
         return errorResponse(`Error installing dependencies: ${getErrorMessage(error)}`);

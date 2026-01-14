@@ -24,8 +24,15 @@ export class NpmClient {
     });
   }
 
-  installAllAsync(): Promise<{ stdout: string; stderr: string }> {
-    return this.runNpmAsync(["install"]);
+  installAllAsync(options: { legacyPeerDeps?: boolean } = {}): Promise<{
+    stdout: string;
+    stderr: string;
+  }> {
+    const args = ["install"];
+    if (options.legacyPeerDeps) {
+      args.push("--legacy-peer-deps");
+    }
+    return this.runNpmAsync(args);
   }
 
   installPackageAsync(packageName: string): Promise<{ stdout: string; stderr: string }> {
