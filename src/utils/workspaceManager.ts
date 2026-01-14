@@ -127,6 +127,59 @@ export class WorkspaceManager {
     await fs.cp(sourcePath, destinationPath, { recursive: true, errorOnExist: true });
   }
 
+  async searchEntriesAsync(
+    pattern: string,
+    flags?: string
+  ): Promise<Array<{ path: string; type: "dir" | "file" }>> {
+    let regex: RegExp;
+    try {
+      regex = new RegExp(pattern, flags);
+    } catch (error) {
+      throw new Error(
+        `Invalid regular expression: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
+
+    const results: Array<{ path: string; type: "dir" | "file" }> = [];
+    const queue: Array<{ absPath: string; relPath: string }> = [
+      { absPath: this.getWorkspaceDir(), relPath: "" },
+    ];
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current) {
+        continue;
+      }
+      const entries = await fs.readdir(current.absPath, { withFileTypes: true });
+      for (const entry of entries) {
+        const relPath = current.relPath
+          ? path.join(current.relPath, entry.name)
+          : entry.name;
+        if (entry.isDirectory()) {
+          if (this.packageDirIgnore.has(entry.name)) {
+            continue;
+          }
+          if (regex.test(relPath)) {
+            results.push({ path: relPath, type: "dir" });
+          }
+          queue.push({
+            absPath: path.join(current.absPath, entry.name),
+            relPath,
+          });
+          continue;
+        }
+
+        if (regex.test(relPath)) {
+          results.push({ path: relPath, type: "file" });
+        }
+      }
+    }
+
+    return results;
+  }
+
   async listEntriesAsync(name?: string): Promise<Dirent[]> {
     if (!name) {
       return fs.readdir(this.getWorkspaceDir(), { withFileTypes: true });

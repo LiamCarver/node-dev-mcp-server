@@ -31,6 +31,11 @@ type CopyFolderInput = {
   name: string;
   newName: string;
 };
+
+type SearchInput = {
+  pattern: string;
+  flags?: string;
+};
 const commitAndPushAsync = async (
   gitClient: GitClient,
   commitMessage: string
@@ -183,6 +188,36 @@ export const registerFileTools = (
         return textResponse(`Successfully copied ${name} to ${newName}`);
       } catch (error) {
         return errorResponse(`Error copying folder: ${getErrorMessage(error)}`);
+      }
+    }
+  );
+
+  server.registerTool(
+    "search_entries",
+    {
+      description: "Search for files and folders in the workspace using a regular expression",
+      inputSchema: z
+        .object({
+          pattern: z
+            .string()
+            .min(1)
+            .describe("Regular expression pattern to match against relative paths"),
+          flags: z
+            .string()
+            .optional()
+            .describe("Optional regular expression flags, e.g. 'i' for case-insensitive"),
+        })
+        .strict(),
+    },
+    async ({ pattern, flags }: SearchInput) => {
+      try {
+        const matches = await workspaceManager.searchEntriesAsync(pattern, flags);
+        const listing = matches
+          .map((entry) => `${entry.type}\t${entry.path}`)
+          .join("\n");
+        return textResponse(listing);
+      } catch (error) {
+        return errorResponse(`Error searching entries: ${getErrorMessage(error)}`);
       }
     }
   );
