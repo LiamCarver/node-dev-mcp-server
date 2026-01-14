@@ -19,9 +19,8 @@ export class NpmClient {
   }
 
   async runNpmAsync(args: string[]): Promise<{ stdout: string; stderr: string }> {
-    return this.execFileAsync(this.npmCommand, args, {
-      cwd: this.workspaceManager.getWorkspaceDir(),
-    });
+    const packageRoot = await this.workspaceManager.getPackageRootAsync();
+    return this.execFileAsync(this.npmCommand, args, { cwd: packageRoot });
   }
 
   installAllAsync(options: { legacyPeerDeps?: boolean } = {}): Promise<{

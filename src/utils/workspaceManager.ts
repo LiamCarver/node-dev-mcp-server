@@ -4,6 +4,14 @@ import path from "path";
 
 export class WorkspaceManager {
   private readonly workspaceRoot: string;
+  private packageRootCache?: string;
+  private readonly packageDirIgnore = new Set([
+    ".git",
+    "node_modules",
+    "build",
+    "dist",
+    "out",
+  ]);
 
   constructor({ workspaceRoot }: { workspaceRoot: string }) {
     this.workspaceRoot = workspaceRoot;
@@ -11,6 +19,72 @@ export class WorkspaceManager {
 
   getWorkspaceDir(): string {
     return this.workspaceRoot;
+  }
+
+  async getPackageRootAsync(): Promise<string> {
+    if (this.packageRootCache) {
+      return this.packageRootCache;
+    }
+
+    const workspaceDir = this.getWorkspaceDir();
+    const entries = await fs.readdir(workspaceDir, { withFileTypes: true });
+    const hasRootPackage = entries.some(
+      (entry) => entry.isFile() && entry.name === "package.json"
+    );
+    if (hasRootPackage) {
+      this.packageRootCache = workspaceDir;
+      return workspaceDir;
+    }
+
+    const matches: string[] = [];
+    const queue: string[] = [];
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      if (this.packageDirIgnore.has(entry.name)) {
+        continue;
+      }
+      queue.push(path.join(workspaceDir, entry.name));
+    }
+    while (queue.length > 0) {
+      const currentDir = queue.shift();
+      if (!currentDir) {
+        continue;
+      }
+
+      const currentEntries = await fs.readdir(currentDir, { withFileTypes: true });
+      const hasPackageJson = currentEntries.some(
+        (entry) => entry.isFile() && entry.name === "package.json"
+      );
+      if (hasPackageJson) {
+        matches.push(currentDir);
+        continue;
+      }
+
+      for (const entry of currentEntries) {
+        if (!entry.isDirectory()) {
+          continue;
+        }
+        if (this.packageDirIgnore.has(entry.name)) {
+          continue;
+        }
+        queue.push(path.join(currentDir, entry.name));
+      }
+    }
+
+    if (matches.length === 1) {
+      this.packageRootCache = matches[0];
+      return matches[0];
+    }
+
+    if (matches.length > 1) {
+      throw new Error(
+        `Multiple package.json files found in workspace. Set WORKSPACE_ROOT to the package root or remove extra packages.`
+      );
+    }
+
+    throw new Error("No package.json found in workspace.");
   }
 
   resolvePath(fileName: string): string {
