@@ -117,6 +117,16 @@ export class WorkspaceManager {
     await fs.rm(this.resolvePath(name), { recursive: true, force: true });
   }
 
+  async copyFolderAsync(sourceName: string, destinationName: string): Promise<void> {
+    const sourcePath = this.resolvePath(sourceName);
+    const destinationPath = this.resolvePath(destinationName);
+    const sourceStats = await fs.stat(sourcePath);
+    if (!sourceStats.isDirectory()) {
+      throw new Error("Source path is not a folder.");
+    }
+    await fs.cp(sourcePath, destinationPath, { recursive: true, errorOnExist: true });
+  }
+
   async listEntriesAsync(name?: string): Promise<Dirent[]> {
     if (!name) {
       return fs.readdir(this.getWorkspaceDir(), { withFileTypes: true });

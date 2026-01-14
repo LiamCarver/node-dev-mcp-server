@@ -26,6 +26,11 @@ type DeleteInput = {
 type ListDirInput = {
   name?: string;
 };
+
+type CopyFolderInput = {
+  name: string;
+  newName: string;
+};
 const commitAndPushAsync = async (
   gitClient: GitClient,
   commitMessage: string
@@ -151,6 +156,33 @@ export const registerFileTools = (
         return textResponse(message);
       } catch (error) {
         return errorResponse(`Error deleting folder: ${getErrorMessage(error)}`);
+      }
+    }
+  );
+
+  server.registerTool(
+    "copy_folder",
+    {
+      description: "Copy a folder in the workspace folder",
+      inputSchema: z
+        .object({
+          name: z
+            .string()
+            .min(1)
+            .describe("Existing folder name inside the workspace folder"),
+          newName: z
+            .string()
+            .min(1)
+            .describe("New folder name inside the workspace folder"),
+        })
+        .strict(),
+    },
+    async ({ name, newName }: CopyFolderInput) => {
+      try {
+        await workspaceManager.copyFolderAsync(name, newName);
+        return textResponse(`Successfully copied ${name} to ${newName}`);
+      } catch (error) {
+        return errorResponse(`Error copying folder: ${getErrorMessage(error)}`);
       }
     }
   );
