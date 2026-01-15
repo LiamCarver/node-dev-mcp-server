@@ -18,12 +18,11 @@ export class NpmClient {
     this.npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   }
 
-  async runNpmAsync(args: string[]): Promise<{ stdout: string; stderr: string }> {
-    const packageRoot = await this.workspaceManager.getPackageRootAsync();
-    return this.execFileAsync(this.npmCommand, args, { cwd: packageRoot });
+  async runNpmAsync(currentWorkingDirectory: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+    return this.execFileAsync(this.npmCommand, args, { cwd: currentWorkingDirectory });
   }
 
-  installAllAsync(options: { legacyPeerDeps?: boolean } = {}): Promise<{
+  installAllAsync(currentWorkingDirectory: string, options: { legacyPeerDeps?: boolean } = {}): Promise<{
     stdout: string;
     stderr: string;
   }> {
@@ -31,14 +30,14 @@ export class NpmClient {
     if (options.legacyPeerDeps) {
       args.push("--legacy-peer-deps");
     }
-    return this.runNpmAsync(args);
+    return this.runNpmAsync(currentWorkingDirectory, args);
   }
 
-  installPackageAsync(packageName: string): Promise<{ stdout: string; stderr: string }> {
-    return this.runNpmAsync(["install", packageName]);
+  installPackageAsync(currentWorkingDirectory: string, packageName: string): Promise<{ stdout: string; stderr: string }> {
+    return this.runNpmAsync(currentWorkingDirectory, ["install", packageName]);
   }
 
-  runScriptAsync(script: string): Promise<{ stdout: string; stderr: string }> {
-    return this.runNpmAsync(["run", script]);
+  runScriptAsync(currentWorkingDirectory: string, script: string): Promise<{ stdout: string; stderr: string }> {
+    return this.runNpmAsync(currentWorkingDirectory, ["run", script]);
   }
 }

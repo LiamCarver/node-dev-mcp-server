@@ -17,11 +17,12 @@ export const registerStartWorkTools = (
       inputSchema: z
         .object({
           branch: z.string().min(1),
+          currentWorkingDirectory: z.string().min(1),
           startPoint: z.string().min(1).optional(),
         })
         .strict(),
     },
-    async ({ branch, startPoint }) => {
+    async ({ branch, currentWorkingDirectory, startPoint }) => {
       try {
         const { stdout: setUrlStdout } = await gitClient.setRemoteUrlFromEnvAsync();
         const { stdout: pullStdout } = await gitClient.pullAsync();
@@ -29,7 +30,7 @@ export const registerStartWorkTools = (
           branch,
           startPoint
         );
-        const { stdout: installStdout } = await npmClient.installAllAsync();
+        const { stdout: installStdout } = await npmClient.installAllAsync(currentWorkingDirectory);
 
         const setUrlMessage = setUrlStdout
           ? `Git remote set-url output:\n${setUrlStdout}`
