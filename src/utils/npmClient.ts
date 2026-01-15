@@ -37,6 +37,7 @@ export class NpmClient {
     stderr: string;
   }> {
     const args = ["install"];
+    args.push('--include=dev');
     if (options.legacyPeerDeps) {
       args.push("--legacy-peer-deps");
     }

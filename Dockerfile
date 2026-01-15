@@ -21,6 +21,8 @@ RUN apt-get update \
   && git config --global user.email "mcp-bot@ai.com" \
   && rm -rf /var/lib/apt/lists/*
 
+RUN npx playwright install
+
 WORKDIR /app
 
 COPY package.json package-lock.json ./
