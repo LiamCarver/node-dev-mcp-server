@@ -3,6 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { GitClient } from "../utils/gitClient.js";
 import type { NpmClient } from "../utils/npmClient.js";
 import { formatCommandFailure, formatCommandOutput } from "../utils/commandOutput.js";
+import { commitAndPushAsync } from "../utils/gitCommit.js";
 import { errorResponse, getErrorMessage, textResponse } from "../utils/toolResponses.js";
 
 export const registerStartWorkTools = (
@@ -21,10 +22,11 @@ export const registerStartWorkTools = (
           currentWorkingDirectory: z.string().min(1),
           installWithLegacyPeerDependencies: z.boolean(),
           startPoint: z.string().min(1).optional(),
+          commitMessage: z.string().min(1).describe("Commit message for git"),
         })
         .strict(),
     },
-    async ({ branch, currentWorkingDirectory, installWithLegacyPeerDependencies, startPoint }) => {
+    async ({ branch, currentWorkingDirectory, installWithLegacyPeerDependencies, startPoint, commitMessage }) => {
       try {
         const setUrlResult = await gitClient.setRemoteUrlFromEnvAsync();
         if (setUrlResult.exitCode !== 0) {
@@ -51,11 +53,25 @@ export const registerStartWorkTools = (
             `Error installing dependencies.\n\n${formatCommandFailure(installResult)}`
           );
         }
+        const commitOutcome = await commitAndPushAsync(gitClient, commitMessage);
+        if (!commitOutcome.ok) {
+          return errorResponse(
+            `Error ${commitOutcome.step} start_work changes.\n\n${formatCommandFailure(
+              commitOutcome.result
+            )}`
+          );
+        }
 
         const setUrlOutput = formatCommandOutput(setUrlResult);
         const pullOutput = formatCommandOutput(pullResult);
         const createBranchOutput = formatCommandOutput(createBranchResult);
         const installOutput = formatCommandOutput(installResult);
+        const commitOutput = commitOutcome.outputs.length
+          ? `\n\n${commitOutcome.outputs.join("\n\n")}`
+          : "";
+        const commitNote = commitOutcome.skipped
+          ? `\n\n${commitOutcome.skipReason ?? "No changes to commit."}`
+          : "";
 
         const setUrlMessage = setUrlOutput
           ? `Git remote set-url output:\n${setUrlOutput}`
@@ -65,8 +81,8 @@ export const registerStartWorkTools = (
           ? `Git branch create/push output:\n${createBranchOutput}`
           : "Git branch create/push completed.";
         const installMessage = installOutput
-          ? `Dependency install output:\n${installOutput}`
-          : "Dependency install completed.";
+          ? `Dependency install output:\n${installOutput}${commitOutput}${commitNote}`
+          : `Dependency install completed.${commitOutput}${commitNote}`;
 
         return textResponse(
           `${setUrlMessage}\n\n${pullMessage}\n\n${createBranchMessage}\n\n${installMessage}`

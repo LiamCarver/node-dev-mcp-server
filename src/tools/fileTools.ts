@@ -6,6 +6,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WorkspaceManager } from "../utils/workspaceManager.js";
 import type { GitClient } from "../utils/gitClient.js";
 import { runCommandAsync } from "../utils/commandRunner.js";
+import { commitAndPushAsync } from "../utils/gitCommit.js";
 import {
   errorResponse,
   getErrorMessage,
@@ -35,6 +36,7 @@ type ListDirInput = {
 type CopyFolderInput = {
   name: string;
   newName: string;
+  commitMessage: string;
 };
 
 type SearchInput = {
@@ -47,6 +49,7 @@ type ApplyPatchInput = {
   dryRun?: boolean;
   reverse?: boolean;
   fuzz?: number;
+  commitMessage: string;
 };
 
 type SearchContentInput = {
@@ -197,10 +200,11 @@ export const registerFileTools = (
           dryRun: z.boolean().optional().describe("Validate without applying changes"),
           reverse: z.boolean().optional().describe("Apply the patch in reverse"),
           fuzz: z.number().int().min(0).optional().describe("Allow fuzz matching"),
+          commitMessage: z.string().min(1).describe("Commit message for git"),
         })
         .strict(),
     },
-    async ({ patch, dryRun, reverse, fuzz }: ApplyPatchInput) => {
+    async ({ patch, dryRun, reverse, fuzz, commitMessage }: ApplyPatchInput) => {
       const patchPaths = extractPatchPaths(patch);
       const validationError = validatePatchPaths(workspaceManager, patchPaths);
       if (validationError) {
@@ -249,12 +253,33 @@ export const registerFileTools = (
           );
         }
 
+        const commitOutcome = await commitAndPushAsync(
+          gitClient,
+          commitMessage,
+          patchPaths
+        );
+        if (!commitOutcome.ok) {
+          return errorResponse(
+            `Error ${commitOutcome.step} patch changes.\n\n${formatCommandFailure(
+              commitOutcome.result
+            )}`
+          );
+        }
+
         const output = formatCommandOutput(applyResult);
+        const commitOutput = commitOutcome.outputs.length
+          ? `\n\n${commitOutcome.outputs.join("\n\n")}`
+          : "";
+        const commitNote = commitOutcome.skipped
+          ? `\n\n${commitOutcome.skipReason ?? "No changes to commit."}`
+          : "";
         const message = output
           ? `Patch applied successfully.\n\nFiles:\n${patchPaths.join(
               "\n"
-            )}\n\n${output}`
-          : `Patch applied successfully.\n\nFiles:\n${patchPaths.join("\n")}`;
+            )}\n\n${output}${commitOutput}${commitNote}`
+          : `Patch applied successfully.\n\nFiles:\n${patchPaths.join(
+              "\n"
+            )}${commitOutput}${commitNote}`;
         return textResponse(message);
       } catch (error) {
         return errorResponse(`Error applying patch: ${getErrorMessage(error)}`);
@@ -295,31 +320,16 @@ export const registerFileTools = (
     async ({ name, content, commitMessage }: WriteInput) => {
       try {
         await workspaceManager.writeFileAsync(name, content);
-        const addResult = await gitClient.addAsync([name]);
-        if (addResult.exitCode !== 0) {
+        const commitOutcome = await commitAndPushAsync(gitClient, commitMessage, [name]);
+        if (!commitOutcome.ok) {
           return errorResponse(
-            `Error staging ${name}.\n\n${formatCommandFailure(addResult)}`
+            `Error ${commitOutcome.step} ${name}.\n\n${formatCommandFailure(
+              commitOutcome.result
+            )}`
           );
         }
-        const commitResult = await gitClient.commitAsync(commitMessage);
-        if (commitResult.exitCode !== 0) {
-          return errorResponse(
-            `Error committing ${name}.\n\n${formatCommandFailure(commitResult)}`
-          );
-        }
-        const pushResult = await gitClient.pushAsync();
-        if (pushResult.exitCode !== 0) {
-          return errorResponse(
-            `Error pushing changes for ${name}.\n\n${formatCommandFailure(pushResult)}`
-          );
-        }
-        const outputs = [
-          formatCommandOutput(addResult),
-          formatCommandOutput(commitResult),
-          formatCommandOutput(pushResult),
-        ].filter(Boolean);
-        const message = outputs.length
-          ? `Successfully wrote to ${name}.\n\n${outputs.join("\n\n")}`
+        const message = commitOutcome.outputs.length
+          ? `Successfully wrote to ${name}.\n\n${commitOutcome.outputs.join("\n\n")}`
           : `Successfully wrote to ${name}.`;
         return textResponse(message);
       } catch (error) {
@@ -340,31 +350,16 @@ export const registerFileTools = (
     async ({ name, commitMessage }: DeleteInput) => {
       try {
         await workspaceManager.deleteFileAsync(name);
-        const addResult = await gitClient.addAsync(["-A"]);
-        if (addResult.exitCode !== 0) {
+        const commitOutcome = await commitAndPushAsync(gitClient, commitMessage, [name]);
+        if (!commitOutcome.ok) {
           return errorResponse(
-            `Error staging deletion for ${name}.\n\n${formatCommandFailure(addResult)}`
+            `Error ${commitOutcome.step} deletion for ${name}.\n\n${formatCommandFailure(
+              commitOutcome.result
+            )}`
           );
         }
-        const commitResult = await gitClient.commitAsync(commitMessage);
-        if (commitResult.exitCode !== 0) {
-          return errorResponse(
-            `Error committing deletion for ${name}.\n\n${formatCommandFailure(commitResult)}`
-          );
-        }
-        const pushResult = await gitClient.pushAsync();
-        if (pushResult.exitCode !== 0) {
-          return errorResponse(
-            `Error pushing deletion for ${name}.\n\n${formatCommandFailure(pushResult)}`
-          );
-        }
-        const outputs = [
-          formatCommandOutput(addResult),
-          formatCommandOutput(commitResult),
-          formatCommandOutput(pushResult),
-        ].filter(Boolean);
-        const message = outputs.length
-          ? `Successfully deleted ${name}.\n\n${outputs.join("\n\n")}`
+        const message = commitOutcome.outputs.length
+          ? `Successfully deleted ${name}.\n\n${commitOutcome.outputs.join("\n\n")}`
           : `Successfully deleted ${name}.`;
         return textResponse(message);
       } catch (error) {
@@ -382,12 +377,29 @@ export const registerFileTools = (
           .string()
           .min(1)
           .describe("Folder name inside the workspace folder"),
+        commitMessage: z.string().min(1).describe("Commit message for git"),
       }),
     },
-    async ({ name }: NameInput) => {
+    async ({ name, commitMessage }: DeleteInput) => {
       try {
         await workspaceManager.createFolderAsync(name);
-        return textResponse(`Successfully created ${name}`);
+        const commitOutcome = await commitAndPushAsync(gitClient, commitMessage, [name]);
+        if (!commitOutcome.ok) {
+          return errorResponse(
+            `Error ${commitOutcome.step} folder creation for ${name}.\n\n${formatCommandFailure(
+              commitOutcome.result
+            )}`
+          );
+        }
+        const note = commitOutcome.skipped
+          ? `\n\n${commitOutcome.skipReason ?? "No changes to commit."}`
+          : "";
+        const message = commitOutcome.outputs.length
+          ? `Successfully created ${name}.\n\n${commitOutcome.outputs.join(
+              "\n\n"
+            )}${note}`
+          : `Successfully created ${name}.${note}`;
+        return textResponse(message);
       } catch (error) {
         return errorResponse(`Error creating folder: ${getErrorMessage(error)}`);
       }
@@ -409,31 +421,16 @@ export const registerFileTools = (
     async ({ name, commitMessage }: DeleteInput) => {
       try {
         await workspaceManager.deleteFolderAsync(name);
-        const addResult = await gitClient.addAsync(["-A"]);
-        if (addResult.exitCode !== 0) {
+        const commitOutcome = await commitAndPushAsync(gitClient, commitMessage, [name]);
+        if (!commitOutcome.ok) {
           return errorResponse(
-            `Error staging deletion for ${name}.\n\n${formatCommandFailure(addResult)}`
+            `Error ${commitOutcome.step} deletion for ${name}.\n\n${formatCommandFailure(
+              commitOutcome.result
+            )}`
           );
         }
-        const commitResult = await gitClient.commitAsync(commitMessage);
-        if (commitResult.exitCode !== 0) {
-          return errorResponse(
-            `Error committing deletion for ${name}.\n\n${formatCommandFailure(commitResult)}`
-          );
-        }
-        const pushResult = await gitClient.pushAsync();
-        if (pushResult.exitCode !== 0) {
-          return errorResponse(
-            `Error pushing deletion for ${name}.\n\n${formatCommandFailure(pushResult)}`
-          );
-        }
-        const outputs = [
-          formatCommandOutput(addResult),
-          formatCommandOutput(commitResult),
-          formatCommandOutput(pushResult),
-        ].filter(Boolean);
-        const message = outputs.length
-          ? `Successfully deleted ${name}.\n\n${outputs.join("\n\n")}`
+        const message = commitOutcome.outputs.length
+          ? `Successfully deleted ${name}.\n\n${commitOutcome.outputs.join("\n\n")}`
           : `Successfully deleted ${name}.`;
         return textResponse(message);
       } catch (error) {
@@ -456,13 +453,31 @@ export const registerFileTools = (
             .string()
             .min(1)
             .describe("New folder name inside the workspace folder"),
+          commitMessage: z.string().min(1).describe("Commit message for git"),
         })
         .strict(),
     },
-    async ({ name, newName }: CopyFolderInput) => {
+    async ({ name, newName, commitMessage }: CopyFolderInput) => {
       try {
         await workspaceManager.copyFolderAsync(name, newName);
-        return textResponse(`Successfully copied ${name} to ${newName}`);
+        const commitOutcome = await commitAndPushAsync(
+          gitClient,
+          commitMessage,
+          [newName]
+        );
+        if (!commitOutcome.ok) {
+          return errorResponse(
+            `Error ${commitOutcome.step} copy for ${newName}.\n\n${formatCommandFailure(
+              commitOutcome.result
+            )}`
+          );
+        }
+        const message = commitOutcome.outputs.length
+          ? `Successfully copied ${name} to ${newName}.\n\n${commitOutcome.outputs.join(
+              "\n\n"
+            )}`
+          : `Successfully copied ${name} to ${newName}.`;
+        return textResponse(message);
       } catch (error) {
         return errorResponse(`Error copying folder: ${getErrorMessage(error)}`);
       }

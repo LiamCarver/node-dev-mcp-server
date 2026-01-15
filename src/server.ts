@@ -20,7 +20,7 @@ const npmClient = new NpmClient(workspaceManager);
 
 registerFileTools(server, workspaceManager, gitClient);
 registerGitTools(server, gitClient);
-registerNpmTools(server, npmClient);
+registerNpmTools(server, npmClient, gitClient);
 registerStartWorkTools(server, gitClient, npmClient);
 
 async function main() {
