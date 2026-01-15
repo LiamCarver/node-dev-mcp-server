@@ -5,6 +5,7 @@ import path from "path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WorkspaceManager } from "../utils/workspaceManager.js";
 import type { GitClient } from "../utils/gitClient.js";
+import { runCommandAsync } from "../utils/commandRunner.js";
 import {
   errorResponse,
   getErrorMessage,
@@ -46,6 +47,12 @@ type ApplyPatchInput = {
   dryRun?: boolean;
   reverse?: boolean;
   fuzz?: number;
+};
+
+type SearchContentInput = {
+  pattern: string;
+  flags?: string;
+  path?: string;
 };
 
 const normalizePatchPath = (rawPath: string): string | null => {
@@ -107,11 +114,79 @@ const validatePatchPaths = (
   return null;
 };
 
+const resolveSearchTargetAsync = async (
+  workspaceManager: WorkspaceManager,
+  searchPath?: string
+): Promise<string> => {
+  if (!searchPath) {
+    return ".";
+  }
+  const resolvedPath = workspaceManager.resolvePath(searchPath);
+  await fs.stat(resolvedPath);
+  const relativePath = path.relative(workspaceManager.getWorkspaceDir(), resolvedPath);
+  return relativePath || ".";
+};
+
 export const registerFileTools = (
   server: McpServer,
   workspaceManager: WorkspaceManager,
   gitClient: GitClient
 ): void => {
+  server.registerTool(
+    "search_content",
+    {
+      description: "Search file contents in the workspace using ripgrep (rg)",
+      inputSchema: z
+        .object({
+          pattern: z.string().min(1).describe("Regular expression pattern to search"),
+          flags: z
+            .string()
+            .optional()
+            .describe("Optional regex flags (currently supports 'i' for ignore-case)"),
+          path: z
+            .string()
+            .optional()
+            .describe("Optional path inside the workspace to scope the search"),
+        })
+        .strict(),
+    },
+    async ({ pattern, flags, path: searchPath }: SearchContentInput) => {
+      try {
+        const target = await resolveSearchTargetAsync(workspaceManager, searchPath);
+        const args = [
+          "--with-filename",
+          "--line-number",
+          "--column",
+          "--no-heading",
+          "--color",
+          "never",
+        ];
+        if (flags?.includes("i")) {
+          args.push("-i");
+        }
+        args.push(pattern, target);
+
+        const result = await runCommandAsync("rg", args, {
+          cwd: workspaceManager.getWorkspaceDir(),
+        });
+
+        if (result.exitCode === 1) {
+          return textResponse("No matches found.");
+        }
+        if (result.exitCode !== 0) {
+          return errorResponse(
+            `Error searching content.\n\n${formatCommandFailure(result)}`
+          );
+        }
+
+        const output = formatCommandOutput(result);
+        return textResponse(output || "Search completed with no output.");
+      } catch (error) {
+        return errorResponse(`Error searching content: ${getErrorMessage(error)}`);
+      }
+    }
+  );
+
   server.registerTool(
     "apply_patch",
     {
