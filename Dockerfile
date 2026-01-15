@@ -21,7 +21,7 @@ RUN apt-get update \
   && git config --global user.email "mcp-bot@ai.com" \
   && rm -rf /var/lib/apt/lists/*
 
-RUN npx playwright install
+RUN npx playwright install --with-deps
 
 WORKDIR /app
 
