@@ -18,11 +18,12 @@ export const registerStartWorkTools = (
         .object({
           branch: z.string().min(1),
           currentWorkingDirectory: z.string().min(1),
+          installWithLegacyPeerDependencies: z.boolean(),
           startPoint: z.string().min(1).optional(),
         })
         .strict(),
     },
-    async ({ branch, currentWorkingDirectory, startPoint }) => {
+    async ({ branch, currentWorkingDirectory, installWithLegacyPeerDependencies, startPoint }) => {
       try {
         const { stdout: setUrlStdout } = await gitClient.setRemoteUrlFromEnvAsync();
         const { stdout: pullStdout } = await gitClient.pullAsync();
@@ -30,7 +31,7 @@ export const registerStartWorkTools = (
           branch,
           startPoint
         );
-        const { stdout: installStdout } = await npmClient.installAllAsync(currentWorkingDirectory);
+        const { stdout: installStdout } = await npmClient.installAllAsync(currentWorkingDirectory, { legacyPeerDeps: installWithLegacyPeerDependencies });
 
         const setUrlMessage = setUrlStdout
           ? `Git remote set-url output:\n${setUrlStdout}`
