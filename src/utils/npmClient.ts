@@ -18,8 +18,18 @@ export class NpmClient {
     this.npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   }
 
+  private async resolveWorkingDirectory(currentWorkingDirectory: string): Promise<string> {
+    try {
+      return await this.workspaceManager.resolveDirectoryAsync(currentWorkingDirectory);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      throw new Error(`Invalid currentWorkingDirectory: ${message}`);
+    }
+  }
+
   async runNpmAsync(currentWorkingDirectory: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
-    return this.execFileAsync(this.npmCommand, args, { cwd: currentWorkingDirectory });
+    const cwd = await this.resolveWorkingDirectory(currentWorkingDirectory);
+    return this.execFileAsync(this.npmCommand, args, { cwd });
   }
 
   installAllAsync(currentWorkingDirectory: string, options: { legacyPeerDeps?: boolean } = {}): Promise<{

@@ -31,6 +31,15 @@ export class WorkspaceManager {
     return resolvedPath;
   }
 
+  async resolveDirectoryAsync(name: string): Promise<string> {
+    const resolvedPath = this.resolvePath(name);
+    const stats = await fs.stat(resolvedPath);
+    if (!stats.isDirectory()) {
+      throw new Error("Path is not a directory.");
+    }
+    return resolvedPath;
+  }
+
   async readFileAsync(name: string): Promise<string> {
     return fs.readFile(this.resolvePath(name), "utf-8");
   }
