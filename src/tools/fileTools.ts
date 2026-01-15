@@ -7,6 +7,7 @@ import {
   getErrorMessage,
   textResponse,
 } from "../utils/toolResponses.js";
+import { formatCommandFailure, formatCommandOutput } from "../utils/commandOutput.js";
 
 type NameInput = {
   name: string;
@@ -35,14 +36,6 @@ type CopyFolderInput = {
 type SearchInput = {
   pattern: string;
   flags?: string;
-};
-const commitAndPushAsync = async (
-  gitClient: GitClient,
-  commitMessage: string
-): Promise<string> => {
-  const { stdout: commitStdout } = await gitClient.commitAsync(commitMessage);
-  const { stdout: pushStdout } = await gitClient.pushAsync();
-  return [commitStdout, pushStdout].filter(Boolean).join("\n");
 };
 
 export const registerFileTools = (
@@ -81,10 +74,31 @@ export const registerFileTools = (
     async ({ name, content, commitMessage }: WriteInput) => {
       try {
         await workspaceManager.writeFileAsync(name, content);
-        await gitClient.addAsync([name]);
-        const gitOutput = await commitAndPushAsync(gitClient, commitMessage);
-        const message = gitOutput
-          ? `Successfully wrote to ${name}.\n\n${gitOutput}`
+        const addResult = await gitClient.addAsync([name]);
+        if (addResult.exitCode !== 0) {
+          return errorResponse(
+            `Error staging ${name}.\n\n${formatCommandFailure(addResult)}`
+          );
+        }
+        const commitResult = await gitClient.commitAsync(commitMessage);
+        if (commitResult.exitCode !== 0) {
+          return errorResponse(
+            `Error committing ${name}.\n\n${formatCommandFailure(commitResult)}`
+          );
+        }
+        const pushResult = await gitClient.pushAsync();
+        if (pushResult.exitCode !== 0) {
+          return errorResponse(
+            `Error pushing changes for ${name}.\n\n${formatCommandFailure(pushResult)}`
+          );
+        }
+        const outputs = [
+          formatCommandOutput(addResult),
+          formatCommandOutput(commitResult),
+          formatCommandOutput(pushResult),
+        ].filter(Boolean);
+        const message = outputs.length
+          ? `Successfully wrote to ${name}.\n\n${outputs.join("\n\n")}`
           : `Successfully wrote to ${name}.`;
         return textResponse(message);
       } catch (error) {
@@ -105,10 +119,31 @@ export const registerFileTools = (
     async ({ name, commitMessage }: DeleteInput) => {
       try {
         await workspaceManager.deleteFileAsync(name);
-        await gitClient.addAsync(["-A"]);
-        const gitOutput = await commitAndPushAsync(gitClient, commitMessage);
-        const message = gitOutput
-          ? `Successfully deleted ${name}.\n\n${gitOutput}`
+        const addResult = await gitClient.addAsync(["-A"]);
+        if (addResult.exitCode !== 0) {
+          return errorResponse(
+            `Error staging deletion for ${name}.\n\n${formatCommandFailure(addResult)}`
+          );
+        }
+        const commitResult = await gitClient.commitAsync(commitMessage);
+        if (commitResult.exitCode !== 0) {
+          return errorResponse(
+            `Error committing deletion for ${name}.\n\n${formatCommandFailure(commitResult)}`
+          );
+        }
+        const pushResult = await gitClient.pushAsync();
+        if (pushResult.exitCode !== 0) {
+          return errorResponse(
+            `Error pushing deletion for ${name}.\n\n${formatCommandFailure(pushResult)}`
+          );
+        }
+        const outputs = [
+          formatCommandOutput(addResult),
+          formatCommandOutput(commitResult),
+          formatCommandOutput(pushResult),
+        ].filter(Boolean);
+        const message = outputs.length
+          ? `Successfully deleted ${name}.\n\n${outputs.join("\n\n")}`
           : `Successfully deleted ${name}.`;
         return textResponse(message);
       } catch (error) {
@@ -153,10 +188,31 @@ export const registerFileTools = (
     async ({ name, commitMessage }: DeleteInput) => {
       try {
         await workspaceManager.deleteFolderAsync(name);
-        await gitClient.addAsync(["-A"]);
-        const gitOutput = await commitAndPushAsync(gitClient, commitMessage);
-        const message = gitOutput
-          ? `Successfully deleted ${name}.\n\n${gitOutput}`
+        const addResult = await gitClient.addAsync(["-A"]);
+        if (addResult.exitCode !== 0) {
+          return errorResponse(
+            `Error staging deletion for ${name}.\n\n${formatCommandFailure(addResult)}`
+          );
+        }
+        const commitResult = await gitClient.commitAsync(commitMessage);
+        if (commitResult.exitCode !== 0) {
+          return errorResponse(
+            `Error committing deletion for ${name}.\n\n${formatCommandFailure(commitResult)}`
+          );
+        }
+        const pushResult = await gitClient.pushAsync();
+        if (pushResult.exitCode !== 0) {
+          return errorResponse(
+            `Error pushing deletion for ${name}.\n\n${formatCommandFailure(pushResult)}`
+          );
+        }
+        const outputs = [
+          formatCommandOutput(addResult),
+          formatCommandOutput(commitResult),
+          formatCommandOutput(pushResult),
+        ].filter(Boolean);
+        const message = outputs.length
+          ? `Successfully deleted ${name}.\n\n${outputs.join("\n\n")}`
           : `Successfully deleted ${name}.`;
         return textResponse(message);
       } catch (error) {

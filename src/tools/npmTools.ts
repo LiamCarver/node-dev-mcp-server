@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { NpmClient } from "../utils/npmClient.js";
+import { formatCommandFailure, formatCommandOutput } from "../utils/commandOutput.js";
 import { errorResponse, getErrorMessage, textResponse } from "../utils/toolResponses.js";
 
 type InstallPackageInput = {
@@ -35,8 +36,14 @@ export const registerNpmTools = (server: McpServer, npmClient: NpmClient): void 
     },
     async ({ currentWorkingDirectory, legacyPeerDeps }: InstallDependenciesInput) => {
       try {
-        const { stdout } = await npmClient.installAllAsync(currentWorkingDirectory, { legacyPeerDeps });
-        return textResponse(stdout || "Dependency install completed.");
+        const result = await npmClient.installAllAsync(currentWorkingDirectory, { legacyPeerDeps });
+        if (result.exitCode !== 0) {
+          return errorResponse(
+            `Error installing dependencies.\n\n${formatCommandFailure(result)}`
+          );
+        }
+        const output = formatCommandOutput(result);
+        return textResponse(output || "Dependency install completed.");
       } catch (error) {
         return errorResponse(`Error installing dependencies: ${getErrorMessage(error)}`);
       }
@@ -57,8 +64,14 @@ export const registerNpmTools = (server: McpServer, npmClient: NpmClient): void 
     },
     async ({ currentWorkingDirectory, name }: InstallPackageInput) => {
       try {
-        const { stdout } = await npmClient.installPackageAsync(currentWorkingDirectory, name);
-        return textResponse(stdout || `Package install completed for ${name}.`);
+        const result = await npmClient.installPackageAsync(currentWorkingDirectory, name);
+        if (result.exitCode !== 0) {
+          return errorResponse(
+            `Error installing package ${name}.\n\n${formatCommandFailure(result)}`
+          );
+        }
+        const output = formatCommandOutput(result);
+        return textResponse(output || `Package install completed for ${name}.`);
       } catch (error) {
         return errorResponse(
           `Error installing package ${name}: ${getErrorMessage(error)}`
@@ -77,8 +90,12 @@ export const registerNpmTools = (server: McpServer, npmClient: NpmClient): void 
     },
     async ({currentWorkingDirectory}) => {
       try {
-        const { stdout } = await npmClient.runScriptAsync(currentWorkingDirectory, "build");
-        return textResponse(stdout || "Build script completed.");
+        const result = await npmClient.runScriptAsync(currentWorkingDirectory, "build");
+        if (result.exitCode !== 0) {
+          return errorResponse(`Error running build script.\n\n${formatCommandFailure(result)}`);
+        }
+        const output = formatCommandOutput(result);
+        return textResponse(output || "Build script completed.");
       } catch (error) {
         return errorResponse(`Error running build script: ${getErrorMessage(error)}`);
       }
@@ -96,8 +113,14 @@ export const registerNpmTools = (server: McpServer, npmClient: NpmClient): void 
     },
     async ({ currentWorkingDirectory, script }: RunScriptInput) => {
       try {
-        const { stdout } = await npmClient.runScriptAsync(currentWorkingDirectory, script);
-        return textResponse(stdout || `Script ${script} completed.`);
+        const result = await npmClient.runScriptAsync(currentWorkingDirectory, script);
+        if (result.exitCode !== 0) {
+          return errorResponse(
+            `Error running script ${script}.\n\n${formatCommandFailure(result)}`
+          );
+        }
+        const output = formatCommandOutput(result);
+        return textResponse(output || `Script ${script} completed.`);
       } catch (error) {
         return errorResponse(
           `Error running script ${script}: ${getErrorMessage(error)}`

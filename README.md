@@ -26,3 +26,4 @@ Lightweight MCP server for local workspace file operations and git commands.
 Notes:
 - `vcs_remote_set_url_from_env` expects `PROJECT_REPO` and `GITHUB_TOKEN` to be set.
 - `currentWorkingDirectory` must resolve to a directory inside the workspace root. Use `.` for the workspace root.
+- Command tools include stdout/stderr in responses and trim long output to the last 300 lines.

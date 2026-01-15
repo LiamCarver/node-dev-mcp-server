@@ -10,14 +10,14 @@ Findings and actions
 --------------------
 | Item | Scope (Server vs External) | Status (Fixed?) | Impact | Recommendation |
 | --- | --- | --- | --- | --- |
-| "run command" lacks full stdout/stderr | Server MCP tool | Unknown | High | Capture full stdout/stderr and include the tail (200-500 lines) in tool results on failure. |
+| "run command" lacks full stdout/stderr | Server MCP tool | Fixed | High | Capture full stdout/stderr and include the tail (200-500 lines) in tool results on failure. |
 | `apply_patch` path limitations | Server MCP tool | Unknown | Medium | Add an MCP-native patch/update tool (diff-style input) or a reliable single-file edit primitive. |
 | Missing MCP "content search" (rg-like) | Server MCP tool | Unknown | High | Add a content search tool with regex/glob support and line-numbered matches. |
-| Test/build outputs not captured | Server MCP tool | Unknown | High | Persist test/build stdout/stderr in tool output; include tail on failure. |
+| Test/build outputs not captured | Server MCP tool | Fixed | High | Persist test/build stdout/stderr in tool output; include tail on failure. |
 
 Prioritized plan
 ----------------
-1. Reliability and debuggability
+1. Reliability and debuggability (completed)
    - Add stdout/stderr capture to "run command" and test/build tooling.
    - Return last 200-500 lines on failure for quick triage.
 2. Developer velocity

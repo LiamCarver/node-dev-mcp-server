@@ -1,11 +1,8 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { GitClient } from "../utils/gitClient.js";
-import {
-  errorResponse,
-  getErrorMessage,
-  textResponse,
-} from "../utils/toolResponses.js";
+import { formatCommandFailure, formatCommandOutput } from "../utils/commandOutput.js";
+import { errorResponse, getErrorMessage, textResponse } from "../utils/toolResponses.js";
 
 type DiffInput = {
   staged?: boolean;
@@ -31,8 +28,14 @@ export const registerGitTools = (
     },
     async () => {
       try {
-        const { stdout } = await gitClient.statusAsync();
-        return textResponse(stdout);
+        const result = await gitClient.statusAsync();
+        if (result.exitCode !== 0) {
+          return errorResponse(
+            `Error getting repository status.\n\n${formatCommandFailure(result)}`
+          );
+        }
+        const output = formatCommandOutput(result);
+        return textResponse(output || "Repository status completed.");
       } catch (error) {
         return errorResponse(`Error getting repository status: ${getErrorMessage(error)}`);
       }
@@ -56,16 +59,28 @@ export const registerGitTools = (
           if (!base || !head) {
             return errorResponse("Both base and head must be provided when diffing refs.");
           }
-          const { stdout } = await gitClient.runGitAsync([
+          const result = await gitClient.runGitAsync([
             "diff",
             `${base}...${head}`,
             ...(file ? ["--", file] : []),
           ]);
-          return textResponse(stdout);
+          if (result.exitCode !== 0) {
+            return errorResponse(
+              `Error getting repository diff.\n\n${formatCommandFailure(result)}`
+            );
+          }
+          const output = formatCommandOutput(result);
+          return textResponse(output || "Repository diff completed.");
         }
 
-        const { stdout } = await gitClient.diffAsync({ staged, file });
-        return textResponse(stdout);
+        const result = await gitClient.diffAsync({ staged, file });
+        if (result.exitCode !== 0) {
+          return errorResponse(
+            `Error getting repository diff.\n\n${formatCommandFailure(result)}`
+          );
+        }
+        const output = formatCommandOutput(result);
+        return textResponse(output || "Repository diff completed.");
       } catch (error) {
         return errorResponse(`Error getting repository diff: ${getErrorMessage(error)}`);
       }
@@ -82,8 +97,14 @@ export const registerGitTools = (
     },
     async ({ limit }: LogInput) => {
       try {
-        const { stdout } = await gitClient.logAsync(limit);
-        return textResponse(stdout);
+        const result = await gitClient.logAsync(limit);
+        if (result.exitCode !== 0) {
+          return errorResponse(
+            `Error getting commit log.\n\n${formatCommandFailure(result)}`
+          );
+        }
+        const output = formatCommandOutput(result);
+        return textResponse(output || "Commit log completed.");
       } catch (error) {
         return errorResponse(`Error getting commit log: ${getErrorMessage(error)}`);
       }

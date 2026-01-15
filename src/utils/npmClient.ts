@@ -1,20 +1,12 @@
-import { execFile } from "child_process";
-import type { ExecFileOptions } from "child_process";
-import util from "util";
 import type { WorkspaceManager } from "./workspaceManager.js";
+import { runCommandAsync, type CommandResult } from "./commandRunner.js";
 
 export class NpmClient {
   private readonly workspaceManager: WorkspaceManager;
-  private readonly execFileAsync: (
-    file: string,
-    args?: readonly string[],
-    options?: ExecFileOptions
-  ) => Promise<{ stdout: string; stderr: string }>;
   private readonly npmCommand: string;
 
   constructor(workspaceManager: WorkspaceManager) {
     this.workspaceManager = workspaceManager;
-    this.execFileAsync = util.promisify(execFile);
     this.npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   }
 
@@ -27,28 +19,31 @@ export class NpmClient {
     }
   }
 
-  async runNpmAsync(currentWorkingDirectory: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
+  async runNpmAsync(currentWorkingDirectory: string, args: string[]): Promise<CommandResult> {
     const cwd = await this.resolveWorkingDirectory(currentWorkingDirectory);
-    return this.execFileAsync(this.npmCommand, args, { cwd });
+    return runCommandAsync(this.npmCommand, args, { cwd });
   }
 
-  installAllAsync(currentWorkingDirectory: string, options: { legacyPeerDeps?: boolean } = {}): Promise<{
-    stdout: string;
-    stderr: string;
-  }> {
+  installAllAsync(
+    currentWorkingDirectory: string,
+    options: { legacyPeerDeps?: boolean } = {}
+  ): Promise<CommandResult> {
     const args = ["install"];
-    args.push('--include=dev');
+    args.push("--include=dev");
     if (options.legacyPeerDeps) {
       args.push("--legacy-peer-deps");
     }
     return this.runNpmAsync(currentWorkingDirectory, args);
   }
 
-  installPackageAsync(currentWorkingDirectory: string, packageName: string): Promise<{ stdout: string; stderr: string }> {
+  installPackageAsync(
+    currentWorkingDirectory: string,
+    packageName: string
+  ): Promise<CommandResult> {
     return this.runNpmAsync(currentWorkingDirectory, ["install", packageName]);
   }
 
-  runScriptAsync(currentWorkingDirectory: string, script: string): Promise<{ stdout: string; stderr: string }> {
+  runScriptAsync(currentWorkingDirectory: string, script: string): Promise<CommandResult> {
     return this.runNpmAsync(currentWorkingDirectory, ["run", script]);
   }
 }

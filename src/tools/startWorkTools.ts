@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { GitClient } from "../utils/gitClient.js";
 import type { NpmClient } from "../utils/npmClient.js";
+import { formatCommandFailure, formatCommandOutput } from "../utils/commandOutput.js";
 import { errorResponse, getErrorMessage, textResponse } from "../utils/toolResponses.js";
 
 export const registerStartWorkTools = (
@@ -25,23 +26,46 @@ export const registerStartWorkTools = (
     },
     async ({ branch, currentWorkingDirectory, installWithLegacyPeerDependencies, startPoint }) => {
       try {
-        const { stdout: setUrlStdout } = await gitClient.setRemoteUrlFromEnvAsync();
-        const { stdout: pullStdout } = await gitClient.pullAsync();
-        const { stdout: createBranchStdout } = await gitClient.createAndPushBranchAsync(
+        const setUrlResult = await gitClient.setRemoteUrlFromEnvAsync();
+        if (setUrlResult.exitCode !== 0) {
+          return errorResponse(
+            `Error setting git remote URL.\n\n${formatCommandFailure(setUrlResult)}`
+          );
+        }
+        const pullResult = await gitClient.pullAsync();
+        if (pullResult.exitCode !== 0) {
+          return errorResponse(`Error pulling changes.\n\n${formatCommandFailure(pullResult)}`);
+        }
+        const createBranchResult = await gitClient.createAndPushBranchAsync(
           branch,
           startPoint
         );
-        const { stdout: installStdout } = await npmClient.installAllAsync(currentWorkingDirectory, { legacyPeerDeps: installWithLegacyPeerDependencies });
+        if (createBranchResult.exitCode !== 0) {
+          return errorResponse(
+            `Error creating/pushing branch.\n\n${formatCommandFailure(createBranchResult)}`
+          );
+        }
+        const installResult = await npmClient.installAllAsync(currentWorkingDirectory, { legacyPeerDeps: installWithLegacyPeerDependencies });
+        if (installResult.exitCode !== 0) {
+          return errorResponse(
+            `Error installing dependencies.\n\n${formatCommandFailure(installResult)}`
+          );
+        }
 
-        const setUrlMessage = setUrlStdout
-          ? `Git remote set-url output:\n${setUrlStdout}`
+        const setUrlOutput = formatCommandOutput(setUrlResult);
+        const pullOutput = formatCommandOutput(pullResult);
+        const createBranchOutput = formatCommandOutput(createBranchResult);
+        const installOutput = formatCommandOutput(installResult);
+
+        const setUrlMessage = setUrlOutput
+          ? `Git remote set-url output:\n${setUrlOutput}`
           : "Git remote set-url completed.";
-        const pullMessage = pullStdout ? `Git pull output:\n${pullStdout}` : "Git pull completed.";
-        const createBranchMessage = createBranchStdout
-          ? `Git branch create/push output:\n${createBranchStdout}`
+        const pullMessage = pullOutput ? `Git pull output:\n${pullOutput}` : "Git pull completed.";
+        const createBranchMessage = createBranchOutput
+          ? `Git branch create/push output:\n${createBranchOutput}`
           : "Git branch create/push completed.";
-        const installMessage = installStdout
-          ? `Dependency install output:\n${installStdout}`
+        const installMessage = installOutput
+          ? `Dependency install output:\n${installOutput}`
           : "Dependency install completed.";
 
         return textResponse(

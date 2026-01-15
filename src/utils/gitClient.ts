@@ -1,28 +1,20 @@
-import { execFile } from "child_process";
-import type { ExecFileOptions } from "child_process";
-import util from "util";
 import type { WorkspaceManager } from "./workspaceManager.js";
+import { runCommandAsync, type CommandResult } from "./commandRunner.js";
 
 export class GitClient {
   private readonly workspaceManager: WorkspaceManager;
-  private readonly execFileAsync: (
-    file: string,
-    args?: readonly string[],
-    options?: ExecFileOptions
-  ) => Promise<{ stdout: string; stderr: string }>;
 
   constructor(workspaceManager: WorkspaceManager) {
     this.workspaceManager = workspaceManager;
-    this.execFileAsync = util.promisify(execFile);
   }
 
-  async runGitAsync(args: string[]): Promise<{ stdout: string; stderr: string }> {
-    return this.execFileAsync("git", args, {
+  async runGitAsync(args: string[]): Promise<CommandResult> {
+    return runCommandAsync("git", args, {
       cwd: this.workspaceManager.getWorkspaceDir(),
     });
   }
 
-  statusAsync(): Promise<{ stdout: string; stderr: string }> {
+  statusAsync(): Promise<CommandResult> {
     return this.runGitAsync(["status"]);
   }
 
@@ -32,7 +24,7 @@ export class GitClient {
   }: {
     staged?: boolean;
     file?: string;
-  } = {}): Promise<{ stdout: string; stderr: string }> {
+  } = {}): Promise<CommandResult> {
     const args = ["diff"];
     if (staged) {
       args.push("--staged");
@@ -43,18 +35,15 @@ export class GitClient {
     return this.runGitAsync(args);
   }
 
-  addAsync(files: string[]): Promise<{ stdout: string; stderr: string }> {
+  addAsync(files: string[]): Promise<CommandResult> {
     return this.runGitAsync(["add", ...files]);
   }
 
-  commitAsync(message: string): Promise<{ stdout: string; stderr: string }> {
+  commitAsync(message: string): Promise<CommandResult> {
     return this.runGitAsync(["commit", "-m", message]);
   }
 
-  pushAsync(
-    remote = "origin",
-    branch?: string
-  ): Promise<{ stdout: string; stderr: string }> {
+  pushAsync(remote = "origin", branch?: string): Promise<CommandResult> {
     const args = ["push", remote];
     if (branch) {
       args.push(branch);
@@ -62,15 +51,15 @@ export class GitClient {
     return this.runGitAsync(args);
   }
 
-  logAsync(limit = 10): Promise<{ stdout: string; stderr: string }> {
+  logAsync(limit = 10): Promise<CommandResult> {
     return this.runGitAsync(["log", "-n", String(limit)]);
   }
 
-  pullAsync(): Promise<{ stdout: string; stderr: string }> {
+  pullAsync(): Promise<CommandResult> {
     return this.runGitAsync(["pull"]);
   }
 
-  setRemoteUrlFromEnvAsync(): Promise<{ stdout: string; stderr: string }> {
+  setRemoteUrlFromEnvAsync(): Promise<CommandResult> {
     const repo = process.env.PROJECT_REPO;
     const token = process.env.GITHUB_TOKEN;
     if (!repo || !token) {
@@ -85,10 +74,7 @@ export class GitClient {
     return this.runGitAsync(["remote", "set-url", "origin", url]);
   }
 
-  deleteBranchAsync(
-    branch: string,
-    force?: boolean
-  ): Promise<{ stdout: string; stderr: string }> {
+  deleteBranchAsync(branch: string, force?: boolean): Promise<CommandResult> {
     const flag = force ? "-D" : "-d";
     return this.runGitAsync(["branch", flag, branch]);
   }
@@ -96,18 +82,23 @@ export class GitClient {
   async createAndPushBranchAsync(
     branch: string,
     startPoint?: string
-  ): Promise<{ stdout: string }> {
+  ): Promise<CommandResult> {
     const createArgs = ["checkout", "-b", branch];
     if (startPoint) {
       createArgs.push(startPoint);
     }
-    const { stdout: createStdout } = await this.runGitAsync(createArgs);
-    const { stdout: pushStdout } = await this.runGitAsync([
-      "push",
-      "-u",
-      "origin",
-      branch,
-    ]);
-    return { stdout: `${createStdout}${pushStdout}` };
+    const createResult = await this.runGitAsync(createArgs);
+    if (createResult.exitCode !== 0) {
+      return createResult;
+    }
+    const pushResult = await this.runGitAsync(["push", "-u", "origin", branch]);
+    if (pushResult.exitCode !== 0) {
+      return pushResult;
+    }
+    return {
+      stdout: `${createResult.stdout}${pushResult.stdout}`,
+      stderr: `${createResult.stderr}${pushResult.stderr}`,
+      exitCode: 0,
+    };
   }
 }
