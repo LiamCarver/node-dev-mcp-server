@@ -13,6 +13,7 @@ Lightweight MCP server for local workspace file operations and git commands.
 | create_folder | Create a folder in the workspace folder | `{ "name": "path/to/folder" }` |
 | delete_folder | Delete a folder from the workspace folder | `{ "name": "path/to/folder", "commitMessage": "Remove deprecated folder" }` |
 | copy_folder | Copy a folder in the workspace folder | `{ "name": "path/to/folder", "newName": "path/to/new-folder" }` |
+| apply_patch | Apply a unified diff patch in the workspace | `{ "patch": "diff --git a/foo.txt b/foo.txt\n...", "dryRun": false }` |
 | search_entries | Search for files and folders in the workspace using a regular expression | `{ "pattern": "src/.*\\.ts$", "flags": "i" }` |
 | list_dir | List files and folders in the workspace folder or a subfolder | `{ "name": "path/to/folder" }` or `{}` |
 | vcs_status | Get the status of the repository | `{}` |

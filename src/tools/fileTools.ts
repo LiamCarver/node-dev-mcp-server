@@ -1,4 +1,7 @@
 import { z } from "zod";
+import fs from "fs/promises";
+import os from "os";
+import path from "path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { WorkspaceManager } from "../utils/workspaceManager.js";
 import type { GitClient } from "../utils/gitClient.js";
@@ -38,11 +41,154 @@ type SearchInput = {
   flags?: string;
 };
 
+type ApplyPatchInput = {
+  patch: string;
+  dryRun?: boolean;
+  reverse?: boolean;
+  fuzz?: number;
+};
+
+const normalizePatchPath = (rawPath: string): string | null => {
+  const trimmed = rawPath.trim();
+  if (!trimmed || trimmed === "/dev/null") {
+    return null;
+  }
+  let normalized = trimmed.replace(/^[ab]\//, "");
+  if (!normalized) {
+    return null;
+  }
+  return normalized;
+};
+
+const extractPatchPaths = (patch: string): string[] => {
+  const paths = new Set<string>();
+  const lines = patch.split(/\r?\n/);
+  for (const line of lines) {
+    if (!line.startsWith("--- ") && !line.startsWith("+++ ")) {
+      continue;
+    }
+    const rawPath = line.slice(4).split(/\s+/)[0];
+    if (!rawPath) {
+      continue;
+    }
+    const normalized = normalizePatchPath(rawPath);
+    if (normalized) {
+      paths.add(normalized);
+    }
+  }
+  return Array.from(paths);
+};
+
+const buildPatchArgs = (options: { reverse?: boolean; fuzz?: number }): string[] => {
+  const args: string[] = [];
+  if (options.reverse) {
+    args.push("--reverse");
+  }
+  if (options.fuzz !== undefined) {
+    args.push("-C", String(options.fuzz));
+  }
+  return args;
+};
+
+const validatePatchPaths = (
+  workspaceManager: WorkspaceManager,
+  paths: string[]
+): string | null => {
+  if (paths.length === 0) {
+    return "Patch does not include any file paths.";
+  }
+  for (const patchPath of paths) {
+    try {
+      workspaceManager.resolvePath(patchPath);
+    } catch (error) {
+      return `Invalid patch path "${patchPath}": ${getErrorMessage(error)}`;
+    }
+  }
+  return null;
+};
+
 export const registerFileTools = (
   server: McpServer,
   workspaceManager: WorkspaceManager,
   gitClient: GitClient
 ): void => {
+  server.registerTool(
+    "apply_patch",
+    {
+      description: "Apply a unified diff patch in the workspace",
+      inputSchema: z
+        .object({
+          patch: z.string().min(1).describe("Unified diff (git-style)"),
+          dryRun: z.boolean().optional().describe("Validate without applying changes"),
+          reverse: z.boolean().optional().describe("Apply the patch in reverse"),
+          fuzz: z.number().int().min(0).optional().describe("Allow fuzz matching"),
+        })
+        .strict(),
+    },
+    async ({ patch, dryRun, reverse, fuzz }: ApplyPatchInput) => {
+      const patchPaths = extractPatchPaths(patch);
+      const validationError = validatePatchPaths(workspaceManager, patchPaths);
+      if (validationError) {
+        return errorResponse(validationError);
+      }
+
+      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "mcp-patch-"));
+      const patchFilePath = path.join(tempDir, "patch.diff");
+      const patchArgs = buildPatchArgs({ reverse, fuzz });
+
+      try {
+        await fs.writeFile(patchFilePath, patch, "utf8");
+
+        const checkResult = await gitClient.runGitAsync([
+          "apply",
+          "--check",
+          ...patchArgs,
+          patchFilePath,
+        ]);
+
+        if (checkResult.exitCode !== 0) {
+          return errorResponse(
+            `Patch check failed (context not found or file missing).\n\n${formatCommandFailure(
+              checkResult
+            )}`
+          );
+        }
+
+        if (dryRun) {
+          return textResponse(
+            `Patch check succeeded (dry run).\n\nFiles:\n${patchPaths.join("\n")}`
+          );
+        }
+
+        const applyResult = await gitClient.runGitAsync([
+          "apply",
+          ...patchArgs,
+          patchFilePath,
+        ]);
+
+        if (applyResult.exitCode !== 0) {
+          return errorResponse(
+            `Patch apply failed (partial apply possible).\n\n${formatCommandFailure(
+              applyResult
+            )}`
+          );
+        }
+
+        const output = formatCommandOutput(applyResult);
+        const message = output
+          ? `Patch applied successfully.\n\nFiles:\n${patchPaths.join(
+              "\n"
+            )}\n\n${output}`
+          : `Patch applied successfully.\n\nFiles:\n${patchPaths.join("\n")}`;
+        return textResponse(message);
+      } catch (error) {
+        return errorResponse(`Error applying patch: ${getErrorMessage(error)}`);
+      } finally {
+        await fs.rm(tempDir, { recursive: true, force: true });
+      }
+    }
+  );
+
   server.registerTool(
     "read_file",
     {
