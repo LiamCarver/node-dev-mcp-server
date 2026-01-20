@@ -1,0 +1,5 @@
+Read test-fixtures/notes.txt and summarize it in one sentence.
+Read test-fixtures/todo.txt and list all TODO items in a clean bullet list.
+Read test-fixtures/notes.txt and rewrite it in a formal tone while keeping the meaning.
+Open test-fixtures/patch-target.txt, then create a patch that replaces the second "Paragraph two repeats." with "Paragraph two updated."
+Open test-fixtures/patch-target.txt, then create a patch that removes one occurrence of "Repeated line."
