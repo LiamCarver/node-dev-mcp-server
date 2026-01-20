@@ -6,7 +6,7 @@ Lightweight MCP server for local workspace file operations and git commands.
 
 | Tool | Description | Input (JSON) |
 | --- | --- | --- |
-| start_work | Set remote URL from env, pull latest changes, create and push a branch, and install dependencies | `{ "branch": "feature-branch", "currentWorkingDirectory": ".", "startPoint": "main", "commitMessage": "Bootstrap workspace" }` |
+| start_work | Set remote URL from env, pull latest changes, create and push a branch, and install dependencies | `{ "branch": "feature-branch", "currentWorkingDirectory": ".", "installWithLegacyPeerDependencies": false, "startPoint": "main", "commitMessage": "Bootstrap workspace" }` |
 | read_file | Read the content of a file in the workspace folder | `{ "name": "path/to/file.txt" }` |
 | write_file | Write content to a file in the workspace folder | `{ "name": "path/to/file.txt", "content": "...", "commitMessage": "Update notes" }` |
 | delete_file | Delete a file from the workspace folder | `{ "name": "path/to/file.txt", "commitMessage": "Remove obsolete file" }` |

@@ -20,13 +20,22 @@ export const registerStartWorkTools = (
         .object({
           branch: z.string().min(1),
           currentWorkingDirectory: z.string().min(1),
-          installWithLegacyPeerDependencies: z.boolean(),
+          installWithLegacyPeerDependencies: z
+            .boolean()
+            .optional()
+            .describe("Use npm --legacy-peer-deps to bypass peer dependency conflicts."),
           startPoint: z.string().min(1).optional(),
           commitMessage: z.string().min(1).describe("Commit message for git"),
         })
         .strict(),
     },
-    async ({ branch, currentWorkingDirectory, installWithLegacyPeerDependencies, startPoint, commitMessage }) => {
+    async ({
+      branch,
+      currentWorkingDirectory,
+      installWithLegacyPeerDependencies,
+      startPoint,
+      commitMessage,
+    }) => {
       try {
         const setUrlResult = await gitClient.setRemoteUrlFromEnvAsync();
         if (setUrlResult.exitCode !== 0) {
@@ -47,7 +56,9 @@ export const registerStartWorkTools = (
             `Error creating/pushing branch.\n\n${formatCommandFailure(createBranchResult)}`
           );
         }
-        const installResult = await npmClient.installAllAsync(currentWorkingDirectory, { legacyPeerDeps: installWithLegacyPeerDependencies });
+        const installResult = await npmClient.installAllAsync(currentWorkingDirectory, {
+          legacyPeerDeps: installWithLegacyPeerDependencies ?? false,
+        });
         if (installResult.exitCode !== 0) {
           return errorResponse(
             `Error installing dependencies.\n\n${formatCommandFailure(installResult)}`
